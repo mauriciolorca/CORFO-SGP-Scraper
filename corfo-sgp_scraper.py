@@ -4,6 +4,17 @@ import pandas as pd
 import time
 
 def get_soup(url, session, data=None):
+    """
+    Obtiene el contenido HTML de una URL utilizando una sesión de requests.
+    
+    Args:
+        url (str): La URL de la página web.
+        session (requests.Session): La sesión de requests.
+        data (dict, optional): Los datos para una solicitud POST.
+    
+    Returns:
+        BeautifulSoup: El contenido HTML de la página.
+    """
     if data:
         response = session.post(url, data=data)
     else:
@@ -12,6 +23,15 @@ def get_soup(url, session, data=None):
     return BeautifulSoup(response.text, 'html.parser')
 
 def extract_project_data(row):
+    """
+    Extrae los datos de un proyecto de una fila de la tabla HTML.
+    
+    Args:
+        row (bs4.element.Tag): La fila de la tabla HTML.
+    
+    Returns:
+        dict: Un diccionario con los datos del proyecto.
+    """
     data = {}
     data['CÓDIGO'] = row.find('span', class_='icono_bullet_busqueda').text.split()[1]
     data['DESCRIPCIÓN'] = row.find('div', style='border:solid 0px gainsboro; height:100px; width:580px; padding-left:10px; white-space:normal !important;').text.strip()
@@ -53,6 +73,9 @@ def extract_project_data(row):
     return data
 
 def main():
+    """
+    Función principal que ejecuta el scraping de la página web de CORFO y guarda los datos en un archivo CSV.
+    """
     url = 'https://sgp.corfo.cl/sgp/publico/busqueda_proyectos.aspx'
     session = requests.Session()
     soup = get_soup(url, session)
@@ -80,11 +103,21 @@ def main():
     soup = get_soup(url, session, data)
 
     projects = []
+    seen_projects = set()
     while True:
         rows = soup.find_all('tr', class_=['GridRow_Default', 'GridAltRow_Default'])
+        new_projects = []
         for row in rows:
             project_data = extract_project_data(row)
-            projects.append(project_data)
+            if project_data['CÓDIGO'] in seen_projects:
+                print("Proyecto duplicado encontrado. Terminando el scraping.")
+                df = pd.DataFrame(projects)
+                df.to_csv('proyectos_corfo.csv', index=False)
+                return
+            new_projects.append(project_data)
+            seen_projects.add(project_data['CÓDIGO'])
+        
+        projects.extend(new_projects)
 
         # Save to CSV
         df = pd.DataFrame(projects)
